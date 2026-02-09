@@ -32,7 +32,6 @@ jobs:
           name: Run tests (Smarter Testing)
           command: |
             . venv/bin/activate
-            export TEST_DEMO_SLOWDOWN=120
             circleci run testsuite "ci tests"
 
       - store_test_results:
@@ -42,57 +41,41 @@ jobs:
           path: test-reports
           destination: test-results
 
-  # Fallback: run pytest directly (no testsuite plugin). Splits test files by node.
-  test-pytest:
+      - run:
+          name: Persist test results to workspace
+          command: |
+            mkdir -p workspace-results/node-${CIRCLE_NODE_INDEX}
+            cp -r test-reports/. workspace-results/node-${CIRCLE_NODE_INDEX}/
+
+      - persist_to_workspace:
+          root: workspace-results
+          paths:
+            - node-${CIRCLE_NODE_INDEX}
+
+  gather-test-results:
     docker:
       - image: cimg/python:3.12
-    parallelism: 4
     steps:
-      - checkout
-
-      - restore_cache:
-          keys:
-            - v1-deps-{{ checksum "requirements.txt" }}
-            - v1-deps-
+      - attach_workspace:
+          at: /tmp/workspace
 
       - run:
-          name: Install dependencies
+          name: List gathered test results
           command: |
-            python -m venv venv
-            . venv/bin/activate
-            pip install -r requirements.txt
-            pip install -e .
-
-      - run:
-          name: Run tests (pytest, split by node)
-          command: |
-            . venv/bin/activate
-            mkdir -p test-reports
-            FILES=$(find ./tests -type f -name 'test*.py' | sort)
-            INDEX=${CIRCLE_NODE_INDEX:-0}
-            NODES=${CIRCLE_NODE_TOTAL:-1}
-            echo "$FILES" | awk -v n=$NODES -v i=$INDEX 'NR % n == i' > /tmp/my_tests.txt
-            echo "Node $((INDEX+1))/$NODES: $(wc -l < /tmp/my_tests.txt) test files"
-            if [ -s /tmp/my_tests.txt ]; then
-              pytest --disable-pytest-warnings --no-header --quiet --tb=short \
-                --junit-xml="test-reports/tests-${CIRCLE_NODE_INDEX:-0}.xml" \
-                $(cat /tmp/my_tests.txt)
-            else
-              echo '<?xml version="1.0"?><testsuites></testsuites>' > "test-reports/tests-${CIRCLE_NODE_INDEX:-0}.xml"
-            fi
-
-      - store_test_results:
-          path: test-reports
+            echo "Test results from all nodes:"
+            find /tmp/workspace -type f -name "*.xml" | sort
 
       - store_artifacts:
-          path: test-reports
-          destination: test-results
+          path: /tmp/workspace
+          destination: all-test-results
 
 workflows:
   smarter-testing-demo:
     jobs:
       - test
-
-  # test-pytest-only:
-  #   jobs:
-  #     - test-pytest
+      - gather-test-results:
+          requires:
+            - test
+            - test: 
+                - success
+                - failed

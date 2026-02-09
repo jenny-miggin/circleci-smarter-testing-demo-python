@@ -1,0 +1,27 @@
+# .circleci/test-suites.yml
+# Smarter Testing with pytest. Requires pytest-circleci-coverage for analysis.
+# See https://circleci.com/docs/guides/test/getting-started-with-smarter-testing/
+---
+name: ci tests
+discover: find ./tests -type f -name 'test*.py'
+run: |
+  pytest --disable-pytest-warnings \
+    --no-header \
+    --quiet \
+    --tb=short \
+    --junit-xml="<< outputs.junit >>" \
+    << test.atoms >>
+analysis: |
+  pytest --disable-pytest-warnings \
+    --no-header \
+    --quiet \
+    --tb=short \
+    --cov=myproj \
+    --cov-context=test \
+    --circleci-coverage=<< outputs.circleci-coverage >> \
+    << test.atoms >>
+outputs:
+  junit: test-reports/tests.xml
+options:
+  test-impact-analysis: true
+  test-analysis-duration: 5

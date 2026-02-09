@@ -1,0 +1,4 @@
+pytest>=7.0
+pytest-cov>=4.0
+# Not on PyPI; install from CircleCI's repo (required for Smarter Testing analysis)
+git+https://github.com/circleci/pytest-circleci-coverage.git

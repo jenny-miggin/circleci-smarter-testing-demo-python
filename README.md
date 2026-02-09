@@ -2,7 +2,7 @@
 
 This repo demonstrates [CircleCI Smarter Testing](https://circleci.com/docs/guides/test/getting-started-with-smarter-testing/) with **pytest** and enough tests to show:
 
-- **Test discovery** – 15 test files discovered by `find ./tests -type f -name 'test*.py'`
+- **Test discovery** – 35 test files (215+ tests) discovered by `find ./tests -type f -name 'test*.py'`
 - **Dynamic test splitting** – test files split across 4 parallel nodes in CI
 - **Test impact analysis** – tests map to source modules via coverage (pytest-cov + pytest-circleci-coverage)
 - **Auto rerun failed tests** – optional when enabled in Smarter Testing
@@ -61,44 +61,29 @@ Run from the repo root with venv activated and the testsuite plugin installed.
 
 **In CI:** Push to a repo on CircleCI and run the **smarter-testing-demo** workflow (or **test-pytest-only** if the testsuite plugin isn’t available). The job uses `parallelism: 4` and `store_test_results` for test-reports.
 
-## 30-minute demo: show impact
+## Showing impact
 
-To make the **full** test suite take ~30 minutes so you can clearly show the benefit of running only impacted tests:
+The suite has **35 test files** and **215+ tests** so a full run takes noticeable time. To show Smarter Testing impact:
 
-1. **Enable the slowdown** (once per test file, so 15 files × 2 min ≈ 30 min):
-
-   ```bash
-   export TEST_DEMO_SLOWDOWN=120
-   ```
-
-2. **Build impact data** (one-time, or when you want to refresh):
+1. **Build impact data** (one-time or when refreshing):
 
    ```bash
    circleci run testsuite "ci tests" --local --test-selection=none --test-analysis=all
    ```
-   This runs analysis only (no test execution). To populate impact from a full run instead, use `--test-analysis=impacted` after a normal run, or run with analysis on in CI.
 
-3. **Run full suite** (~30 min with 1 node; in CI with 4 nodes it’s ~7–8 min):
+2. **Run full suite** (all tests):
 
    ```bash
    circleci run testsuite "ci tests" --local --test-selection=all
    ```
 
-4. **Change one source file** (e.g. add a comment in `myproj/lib/math.py`), then run again:
+3. **Change one source file** (e.g. add a comment in `myproj/lib/math.py`), then run:
 
    ```bash
    circleci run testsuite "ci tests" --local
    ```
 
-   Only tests that touch the changed file (and new/modified tests) run — often 1–2 minutes instead of 30.
-
-5. **Turn off the slowdown** when you’re done demoing:
-
-   ```bash
-   unset TEST_DEMO_SLOWDOWN
-   ```
-
-In CI you can set the `TEST_DEMO_SLOWDOWN` environment variable in the job (e.g. 120) to get the same long-running full suite for demos.
+   Only tests that touch the changed file (and new/modified tests) run — much faster than the full suite.
 
 ## Project layout
 
@@ -111,8 +96,7 @@ In CI you can set the `TEST_DEMO_SLOWDOWN` environment variable in the job (e.g.
 | `myproj/utils/` | slug, validation. |
 | `myproj/api/` | handlers. |
 | `myproj/demo/` | health. |
-| `tests/test_*.py` | 15 pytest test files. |
-| `tests/conftest.py` | Optional: `TEST_DEMO_SLOWDOWN` (seconds per file) for a ~30 min full run. |
+| `tests/test_*.py` | 35 pytest test files (15 original + 20 batch files with 10 tests each = 215+ tests). |
 
 **Analysis** uses the [pytest-circleci-coverage](https://github.com/circleci/pytest-circleci-coverage) plugin so CircleCI can build the test–source impact map. It’s not on PyPI; `requirements.txt` installs it from GitHub (`git+https://github.com/circleci/pytest-circleci-coverage.git`).
 

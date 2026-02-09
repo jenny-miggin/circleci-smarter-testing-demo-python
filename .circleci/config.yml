@@ -32,6 +32,7 @@ jobs:
           name: Run tests (Smarter Testing)
           command: |
             . venv/bin/activate
+            export TEST_DEMO_SLOWDOWN=120
             circleci run testsuite "ci tests"
 
       - store_test_results:

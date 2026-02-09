@@ -61,6 +61,45 @@ Run from the repo root with venv activated and the testsuite plugin installed.
 
 **In CI:** Push to a repo on CircleCI and run the **smarter-testing-demo** workflow (or **test-pytest-only** if the testsuite plugin isn’t available). The job uses `parallelism: 4` and `store_test_results` for test-reports.
 
+## 30-minute demo: show impact
+
+To make the **full** test suite take ~30 minutes so you can clearly show the benefit of running only impacted tests:
+
+1. **Enable the slowdown** (once per test file, so 15 files × 2 min ≈ 30 min):
+
+   ```bash
+   export TEST_DEMO_SLOWDOWN=120
+   ```
+
+2. **Build impact data** (one-time, or when you want to refresh):
+
+   ```bash
+   circleci run testsuite "ci tests" --local --test-selection=none --test-analysis=all
+   ```
+   This runs analysis only (no test execution). To populate impact from a full run instead, use `--test-analysis=impacted` after a normal run, or run with analysis on in CI.
+
+3. **Run full suite** (~30 min with 1 node; in CI with 4 nodes it’s ~7–8 min):
+
+   ```bash
+   circleci run testsuite "ci tests" --local --test-selection=all
+   ```
+
+4. **Change one source file** (e.g. add a comment in `myproj/lib/math.py`), then run again:
+
+   ```bash
+   circleci run testsuite "ci tests" --local
+   ```
+
+   Only tests that touch the changed file (and new/modified tests) run — often 1–2 minutes instead of 30.
+
+5. **Turn off the slowdown** when you’re done demoing:
+
+   ```bash
+   unset TEST_DEMO_SLOWDOWN
+   ```
+
+In CI you can set the `TEST_DEMO_SLOWDOWN` environment variable in the job (e.g. 120) to get the same long-running full suite for demos.
+
 ## Project layout
 
 | Area | Purpose |
@@ -73,6 +112,7 @@ Run from the repo root with venv activated and the testsuite plugin installed.
 | `myproj/api/` | handlers. |
 | `myproj/demo/` | health. |
 | `tests/test_*.py` | 15 pytest test files. |
+| `tests/conftest.py` | Optional: `TEST_DEMO_SLOWDOWN` (seconds per file) for a ~30 min full run. |
 
 **Analysis** uses the [pytest-circleci-coverage](https://github.com/circleci/pytest-circleci-coverage) plugin so CircleCI can build the test–source impact map. It’s not on PyPI; `requirements.txt` installs it from GitHub (`git+https://github.com/circleci/pytest-circleci-coverage.git`).
 

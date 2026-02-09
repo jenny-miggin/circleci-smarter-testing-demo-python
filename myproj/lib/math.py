@@ -10,13 +10,6 @@ def multiply(a: int, b: int) -> int:
     return a * b
 
 
-def multiply_yet_another(a: int, b: int) -> int:
-    return a * b * 100
-
-def multiply_200(a: int, b: int) -> int:
-    return a * b * 200
-
-
 def divide(a: int, b: int) -> float:
     if b == 0:
         raise ValueError("Division by zero")

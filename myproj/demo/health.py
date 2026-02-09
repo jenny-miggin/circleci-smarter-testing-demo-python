@@ -4,3 +4,6 @@ def ping() -> str:
 
 def ready() -> bool:
     return True
+
+def pong() -> str:
+    return "ping"

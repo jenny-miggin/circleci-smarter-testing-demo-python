@@ -50,7 +50,7 @@ jobs:
       - persist_to_workspace:
           root: workspace-results
           paths:
-            - node-${CIRCLE_NODE_INDEX}
+            - .
 
   gather-test-results:
     docker:

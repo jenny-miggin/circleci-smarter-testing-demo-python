@@ -3,7 +3,11 @@
 # See https://circleci.com/docs/guides/test/getting-started-with-smarter-testing/
 ---
 name: ci tests
+
+# Discover all test files under ./tests/
 discover: find ./tests -type f -name 'test*.py'
+
+# Standard test run (used for impact-filtered and full runs)
 run: |
   pytest --disable-pytest-warnings \
     --no-header \
@@ -11,6 +15,9 @@ run: |
     --tb=short \
     --junit-xml="<< outputs.junit >>" \
     << test.atoms >>
+
+# Analysis run: collects coverage context so CircleCI can build the
+# test-impact map linking source changes to affected tests.
 analysis: |
   pytest --disable-pytest-warnings \
     --no-header \
@@ -19,9 +26,18 @@ analysis: |
     --cov=myproj \
     --cov-context=test \
     --circleci-coverage=<< outputs.circleci-coverage >> \
+    --junit-xml="<< outputs.junit >>" \
     << test.atoms >>
+
 outputs:
   junit: test-reports/tests.xml
+  # circleci-coverage must be declared here so the CLI knows where to upload it.
+  circleci-coverage: test-reports/circleci-coverage.json
+
 options:
+  # Enable test impact analysis: only run tests affected by changed source files.
   test-impact-analysis: true
-  test-analysis-duration: 5
+  # Re-run analysis every 10 commits (or on the first run and after branch merges).
+  # Raised from the default of 5 to reduce the overhead of full coverage runs
+  # on busy branches; lower it again if impact accuracy degrades.
+  test-analysis-duration: 10

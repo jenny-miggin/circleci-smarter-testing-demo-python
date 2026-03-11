@@ -3,30 +3,59 @@ version: 2.1
 # Demo for CircleCI Smarter Testing with pytest: discovery, splitting, impact analysis, auto-rerun.
 # See https://circleci.com/docs/guides/test/getting-started-with-smarter-testing/
 #
-# Use workflow "smarter-testing-demo" when the testsuite plugin is available (local or CI).
-# Use workflow "test-pytest-only" when the plugin is not installed.
+# Active workflow: "smarter-testing-demo" (uses circleci run testsuite + test-suites.yml)
+# Fallback workflow: "test-pytest-only" — enable by uncommenting below and commenting out
+# smarter-testing-demo if the testsuite plugin is unavailable.
 
-jobs:
-  test:
+# ---------------------------------------------------------------------------
+# Reusable executor
+# ---------------------------------------------------------------------------
+executors:
+  python:
     docker:
       - image: cimg/python:3.12
     resource_class: small
-    parallelism: 4
-    steps:
-      - checkout
 
+# ---------------------------------------------------------------------------
+# Reusable commands
+# ---------------------------------------------------------------------------
+commands:
+  install-deps:
+    description: Restore pip cache, create venv, install dependencies, save cache
+    steps:
       - restore_cache:
           keys:
-            - v1-deps-{{ checksum "requirements.txt" }}
-            - v1-deps-
+            # Prefer an exact match on both dependency files; fall back to either alone.
+            - v2-deps-{{ checksum "requirements.txt" }}-{{ checksum "pyproject.toml" }}
+            - v2-deps-{{ checksum "requirements.txt" }}-
+            - v2-deps-
 
       - run:
           name: Install dependencies
           command: |
             python -m venv venv
             . venv/bin/activate
+            pip install --upgrade pip
             pip install -r requirements.txt
             pip install -e .
+
+      - save_cache:
+          key: v2-deps-{{ checksum "requirements.txt" }}-{{ checksum "pyproject.toml" }}
+          paths:
+            - venv
+            - ~/.cache/pip
+
+# ---------------------------------------------------------------------------
+# Jobs
+# ---------------------------------------------------------------------------
+jobs:
+  # Primary job: CircleCI Smarter Testing (test impact analysis + auto-rerun)
+  test:
+    executor: python
+    parallelism: 4
+    steps:
+      - checkout
+      - install-deps
 
       - run:
           name: Run tests (Smarter Testing)
@@ -41,43 +70,30 @@ jobs:
           path: test-reports
           destination: test-results
 
-  # Fallback: run pytest directly (no testsuite plugin). Splits test files by node.
+  # Fallback job: plain pytest with CircleCI's built-in test splitting (no plugin required)
   test-pytest:
-    docker:
-      - image: cimg/python:3.12
+    executor: python
     parallelism: 4
     steps:
       - checkout
-
-      - restore_cache:
-          keys:
-            - v1-deps-{{ checksum "requirements.txt" }}
-            - v1-deps-
+      - install-deps
 
       - run:
-          name: Install dependencies
-          command: |
-            python -m venv venv
-            . venv/bin/activate
-            pip install -r requirements.txt
-            pip install -e .
-
-      - run:
-          name: Run tests (pytest, split by node)
+          name: Run tests (pytest with timing-based test splitting)
           command: |
             . venv/bin/activate
             mkdir -p test-reports
-            FILES=$(find ./tests -type f -name 'test*.py' | sort)
-            INDEX=${CIRCLE_NODE_INDEX:-0}
-            NODES=${CIRCLE_NODE_TOTAL:-1}
-            echo "$FILES" | awk -v n=$NODES -v i=$INDEX 'NR % n == i' > /tmp/my_tests.txt
-            echo "Node $((INDEX+1))/$NODES: $(wc -l < /tmp/my_tests.txt) test files"
-            if [ -s /tmp/my_tests.txt ]; then
+            # Use CircleCI's built-in test splitting by timing data for optimal distribution.
+            # Falls back to splitting by name when no timing data is available yet.
+            TEST_FILES=$(circleci tests glob "tests/test*.py" \
+              | circleci tests split --split-by=timings --timings-type=filename)
+            if [ -n "$TEST_FILES" ]; then
               pytest --disable-pytest-warnings --no-header --quiet --tb=short \
                 --junit-xml="test-reports/tests-${CIRCLE_NODE_INDEX:-0}.xml" \
-                $(cat /tmp/my_tests.txt)
+                $TEST_FILES
             else
-              echo '<?xml version="1.0"?><testsuites></testsuites>' > "test-reports/tests-${CIRCLE_NODE_INDEX:-0}.xml"
+              echo '<?xml version="1.0"?><testsuites></testsuites>' \
+                > "test-reports/tests-${CIRCLE_NODE_INDEX:-0}.xml"
             fi
 
       - store_test_results:
@@ -87,11 +103,15 @@ jobs:
           path: test-reports
           destination: test-results
 
+# ---------------------------------------------------------------------------
+# Workflows
+# ---------------------------------------------------------------------------
 workflows:
   smarter-testing-demo:
     jobs:
       - test
 
+  # Uncomment to use plain pytest splitting instead (no Smarter Testing plugin needed):
   # test-pytest-only:
   #   jobs:
   #     - test-pytest
